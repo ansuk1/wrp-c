@@ -60,6 +60,7 @@ struct req_res_t {
     int rdr;
     char *path;
     char *service_name;
+    char *hw_mac;
     char *url;
     char *content_type;
     char *crudPayload;
@@ -83,6 +84,7 @@ static const struct wrp_token WRP_PAYLOAD       = { .name = "payload", .length =
 static const struct wrp_token WRP_SPANS         = { .name = "spans", .length = sizeof( "spans" ) - 1 };
 static const struct wrp_token WRP_INCLUDE_SPANS = { .name = "include_spans", .length = sizeof( "include_spans" ) - 1 };
 static const struct wrp_token WRP_SERVICE_NAME  = { .name = "service_name", .length = sizeof( "service_name" ) - 1 };
+static const struct wrp_token WRP_HW_MAC        = { .name = "hw_mac", .length = sizeof( "hw_mac" ) - 1 };
 static const struct wrp_token WRP_URL           = { .name = "url", .length = sizeof( "url" ) - 1 };
 static const struct wrp_token WRP_METADATA      = { .name = "metadata", .length = sizeof( "metadata" ) - 1 };
 static const struct wrp_token WRP_RDR           = { .name = "rdr", .length = sizeof( "rdr" ) - 1 };
@@ -287,6 +289,7 @@ void wrp_free_struct( wrp_msg_t *msg )
         case WRP_MSG_TYPE__SVC_REGISTRATION:
             WRP_DEBUG("Free for REGISTRATION \n" );
             free( msg->u.reg.service_name );
+            free( msg->u.reg.hw_mac);
             free( msg->u.reg.url );
             break;
         case WRP_MSG_TYPE__CREATE:
@@ -431,6 +434,7 @@ static ssize_t __wrp_struct_to_bytes( const wrp_msg_t *msg, char **bytes )
         case WRP_MSG_TYPE__SVC_REGISTRATION:
             encode->msgType = msg->msg_type;
             encode->service_name = reg->service_name;
+            encode->hw_mac = reg->hw_mac;
             encode->url = reg->url;
             encode->transaction_uuid = NULL;
             encode->include_spans = false;
@@ -992,11 +996,12 @@ static ssize_t __wrp_pack_structure( struct req_res_t *encodeReq , char **data )
             msgpack_pack_bin_body( &pk, encodeReqtmp->payload, encodeReqtmp->payload_size );
             break;
         case WRP_MSG_TYPE__SVC_REGISTRATION:
-            wrp_map_size = 3;//Hardcoded.Pack service name and url only
+            wrp_map_size = 4;//Hardcoded.Pack service name and url only
             msgpack_pack_map( &pk, wrp_map_size );
             __msgpack_pack_string( &pk, WRP_MSG_TYPE.name, WRP_MSG_TYPE.length );
             msgpack_pack_int( &pk, encodeReqtmp->msgType );
             __msgpack_pack_string_nvp( &pk, &WRP_SERVICE_NAME, encodeReqtmp->service_name );
+            __msgpack_pack_string_nvp( &pk, &WRP_HW_MAC, encodeReqtmp->hw_mac );
             __msgpack_pack_string_nvp( &pk, &WRP_URL, encodeReqtmp->url );
             break;
         case WRP_MSG_TYPE__SVC_ALIVE:
@@ -1194,6 +1199,7 @@ static void decodeRequest( msgpack_object deserialized, struct req_res_t **decod
     char *dest = NULL;
     char *payload = NULL;
     char *service_name = NULL;
+    char *hw_mac = NULL;
     char *url = NULL;
     char *path = NULL;
     char *content_type = NULL;
@@ -1257,7 +1263,14 @@ static void decodeRequest( msgpack_object deserialized, struct req_res_t **decod
                             strncpy( service_name, StringValue, sLen );
                             service_name[sLen] = '\0';
                             tmpdecodeReq->service_name = service_name;
-                        } else if( strcmp( keyName, WRP_URL.name ) == 0 ) {
+                        }else if( strcmp( keyName, WRP_HW_MAC.name ) == 0 ) {
+                            sLen = strlen( StringValue );
+                            hw_mac = ( char * ) malloc( sLen + 1 );
+                            strncpy( hw_mac, StringValue, sLen );
+                            hw_mac[sLen] = '\0';
+                            tmpdecodeReq->hw_mac = hw_mac;
+                        } 
+                        else if( strcmp( keyName, WRP_URL.name ) == 0 ) {
                             sLen = strlen( StringValue );
                             url = ( char * ) malloc( sLen + 1 );
                             strncpy( url, StringValue, sLen );
@@ -1570,6 +1583,7 @@ static ssize_t __wrp_bytes_to_struct( const void *bytes, const size_t length,
                     case WRP_MSG_TYPE__SVC_REGISTRATION:
                         msg->msg_type = decodeReq->msgType;
                         msg->u.reg.service_name = decodeReq->service_name;
+                        msg->u.reg.hw_mac = decodeReq->hw_mac;
                         msg->u.reg.url = decodeReq->url;
                         *msg_ptr = msg;
                         free( decodeReq->metadata->data_items );

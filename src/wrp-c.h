@@ -128,6 +128,7 @@ struct wrp_crud_msg {
 struct wrp_svc_registration_msg {
     char *service_name;
     char *url;
+    char *hw_mac;
 };
 
 typedef struct {
